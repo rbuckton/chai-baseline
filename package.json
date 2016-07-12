@@ -15,6 +15,13 @@
     "typescript": "next",
     "chai": "^3.5.0"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rbuckton/chai-baseline.git"
+  },
+  "bugs": {
+    "url": "https://github.com/rbuckton/chai-baseline/issues"
+  },
   "peerDependencies": {
     "chai": ">= 2.1.2 < 4"
   }
