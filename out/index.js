@@ -17,7 +17,7 @@
 var fs = require("fs");
 var path = require("path");
 var stream_1 = require("stream");
-function baseline(chai, utils) {
+function chaiBaseline(chai, utils) {
     var Assertion = chai.Assertion, assert = chai.assert;
     Assertion.addMethod("baseline", baselineAssertion);
     assert.baseline = baselineAssert;
@@ -32,11 +32,11 @@ function baseline(chai, utils) {
             }
             var object = utils.flag(_this, "object");
             var data;
-            if (typeof object === "undefined" || typeof object === "string" || Buffer.isBuffer(data) || (data instanceof stream_1.Stream && data.readable)) {
+            if (typeof object === "undefined" || typeof object === "string" || Buffer.isBuffer(object) || (object instanceof stream_1.Stream && object.readable)) {
                 data = object;
             }
             else {
-                data = String(data);
+                data = String(object);
             }
             var localFile = path.resolve(options.base || ".", options.local || "local", file);
             var referenceFile = path.resolve(options.base || ".", options.reference || "reference", file);
@@ -48,7 +48,7 @@ function baseline(chai, utils) {
                 var local = _a[0], reference = _a[1];
                 utils.flag(_this, "object", local);
                 try {
-                    _this.equals(reference, message);
+                    _this.equals(reference);
                 }
                 catch (e) {
                     e.expected = reference || "";
@@ -64,9 +64,9 @@ function baseline(chai, utils) {
         return new chai.Assertion(data, message).have.baseline(file, options);
     }
 }
-exports.baseline = baseline;
+exports.chaiBaseline = chaiBaseline;
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.default = baseline;
+exports.default = chaiBaseline;
 function readFile(file) {
     return new Promise(function (resolve) {
         fs.readFile(file, /*encoding*/ "utf8", function (err, data) {
@@ -113,21 +113,26 @@ function writeStream(file, stream) {
             .catch(reject);
     });
 }
-function exists(path) {
-    return new Promise(function (resolve) {
-        fs.exists(path, resolve);
-    });
-}
 function mkdir(dirname, mode) {
     return new Promise(function (resolve, reject) {
         fs.mkdir(dirname, mode, function (err) { return err ? reject(err) : resolve(); });
     });
 }
 function ensureDirectory(dirname) {
-    return exists(dirname)
-        .then(function (exists) { return Promise.resolve(path.dirname(dirname))
-        .then(function (parentdir) { return parentdir && parentdir !== dirname ? ensureDirectory(parentdir) : undefined; })
-        .then(function () { return mkdir(dirname, 511 & ~process.umask()); }); });
+    return mkdir(dirname, 4095 & ~process.umask())
+        .catch(function (e) {
+        if (e.code === "EEXIST") {
+            return;
+        }
+        else if (e.code === "ENOENT") {
+            var parentdir = path.dirname(dirname);
+            if (parentdir && parentdir !== dirname) {
+                return ensureDirectory(parentdir)
+                    .then(function () { return ensureDirectory(dirname); });
+            }
+        }
+        throw e;
+    });
 }
 function unlink(file) {
     return new Promise(function (resolve) {

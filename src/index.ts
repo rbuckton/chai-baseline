@@ -29,6 +29,9 @@ declare global {
         interface Assertion {
             baseline(file: string, options: BaselineOptions, message?: string): PromiseLike<void>;
         }
+        interface AssertionPrivate extends Assertion {
+            assert(expr: boolean, msg: string | (() => string), negateMsg?: string | (() => string), expected?: any, actual?: any, showDiff?: boolean): void;
+        }
         interface AssertStatic {
             baseline(data: string | Buffer | NodeJS.ReadableStream | undefined, file: string, options: BaselineOptions, message?: string): PromiseLike<void>;
         }
@@ -48,12 +51,12 @@ export interface BaselineOptions {
     reference?: string;
 }
 
-export function baseline(chai: Chai.ChaiStatic, utils: Chai.UtilsStatic) {
+export function chaiBaseline(chai: Chai.ChaiStatic, utils: Chai.UtilsStatic) {
     const { Assertion, assert } = chai;
     Assertion.addMethod("baseline", baselineAssertion);
     assert.baseline = baselineAssert;
 
-    function baselineAssertion(this: Chai.Assertion, file: string, options: BaselineOptions, message?: string) {
+    function baselineAssertion(this: Chai.AssertionPrivate, file: string, options: BaselineOptions, message?: string) {
         return new Promise<void>((resolve, reject) => {
             if (message) {
                 utils.flag(this, "message", message);
@@ -64,11 +67,11 @@ export function baseline(chai: Chai.ChaiStatic, utils: Chai.UtilsStatic) {
 
             let object = utils.flag(this, "object");
             let data: string | Buffer | NodeJS.ReadableStream | undefined;
-            if (typeof object === "undefined" || typeof object === "string" || Buffer.isBuffer(data) || (data instanceof Stream && data.readable)) {
+            if (typeof object === "undefined" || typeof object === "string" || Buffer.isBuffer(object) || (object instanceof Stream && object.readable)) {
                 data = object;
             }
             else {
-                data = String(data);
+                data = String(object);
             }
 
             const localFile = path.resolve(options.base || ".", options.local || "local", file);
@@ -80,7 +83,7 @@ export function baseline(chai: Chai.ChaiStatic, utils: Chai.UtilsStatic) {
             .then(([local, reference]) => {
                 utils.flag(this, "object", local);
                 try {
-                    this.equals(reference, message);
+                    this.equals(reference);
                 }
                 catch (e) {
                     e.expected = reference || "";
@@ -98,7 +101,7 @@ export function baseline(chai: Chai.ChaiStatic, utils: Chai.UtilsStatic) {
     }
 }
 
-export default baseline;
+export default chaiBaseline;
 
 function readFile(file: string) {
     return new Promise<string | undefined>((resolve) => {
@@ -150,12 +153,6 @@ function writeStream(file: string, stream: NodeJS.ReadableStream) {
     })
 }
 
-function exists(path: string) {
-    return new Promise<boolean>(resolve => {
-        fs.exists(path, resolve);
-    });
-}
-
 function mkdir(dirname: string, mode: number) {
     return new Promise<void>((resolve, reject) => {
         fs.mkdir(dirname, mode, err => err ? reject(err) : resolve());
@@ -163,10 +160,20 @@ function mkdir(dirname: string, mode: number) {
 }
 
 function ensureDirectory(dirname: string): Promise<void> {
-    return exists(dirname)
-        .then(exists => Promise.resolve(path.dirname(dirname))
-            .then(parentdir => parentdir && parentdir !== dirname ? ensureDirectory(parentdir) : undefined)
-            .then(() => mkdir(dirname, 0o0777 & ~process.umask())));
+    return mkdir(dirname, 0o07777 & ~process.umask())
+        .catch((e: NodeJS.ErrnoException) => {
+            if (e.code === "EEXIST") {
+                return;
+            }
+            else if (e.code === "ENOENT") {
+                const parentdir = path.dirname(dirname);
+                if (parentdir && parentdir !== dirname) {
+                    return ensureDirectory(parentdir)
+                        .then(() => ensureDirectory(dirname));
+                }
+            }
+            throw e;
+        });
 }
 
 function unlink(file: string) {

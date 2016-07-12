@@ -12,6 +12,9 @@ declare global  {
         interface Assertion {
             baseline(file: string, options: BaselineOptions, message?: string): PromiseLike<void>;
         }
+        interface AssertionPrivate extends Assertion {
+            assert(expr: boolean, msg: string | (() => string), negateMsg?: string | (() => string), expected?: any, actual?: any, showDiff?: boolean): void;
+        }
         interface AssertStatic {
             baseline(data: string | Buffer | NodeJS.ReadableStream | undefined, file: string, options: BaselineOptions, message?: string): PromiseLike<void>;
         }
@@ -29,6 +32,6 @@ export interface BaselineOptions {
     /** The absolute or relative (to the base directory) path for the reference directory. */
     reference?: string;
 }
-export declare function baseline(chai: Chai.ChaiStatic, utils: Chai.UtilsStatic): void;
-export default baseline;
+export declare function chaiBaseline(chai: Chai.ChaiStatic, utils: Chai.UtilsStatic): void;
+export default chaiBaseline;
 export {};
