@@ -1,0 +1,21 @@
+{
+  "name": "chai-baseline",
+  "version": "1.0.0",
+  "description": "File-based baseline testing for chai",
+  "main": "out/index.js",
+  "typings": "out/index.d.ts",
+  "author": "Ron Buckton <rbuckton@chronicles.org>",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@types/chai": "^3.4.27-alpha",
+    "@types/node": "^4.0.28-alpha",
+    "del": "^2.2.1",
+    "gulp": "^3.9.1",
+    "gulp-tsb": "git://github.com/rbuckton/gulp-tsb.git#srcDestMethods",
+    "typescript": "next",
+    "chai": "^3.5.0"
+  },
+  "peerDependencies": {
+    "chai": ">= 2.1.2 < 4"
+  }
+}
