@@ -15,10 +15,17 @@ npm install chai-baseline
 ## Usage with `expect`
 
 ```ts
+// ES6 syntax (TypeScript, Babel)
 import { use, expect } from "chai";
 import chaiBaseline from "chai-baseline";
 use(chaiBaseline);
 
+// pre-ES6 syntax
+var chai = require("chai"), expect = chai.expect;
+var chaiBaseline = require("chai-baseline").default;
+chai.use(chaiBaseline);
+
+// usage
 it("baseline", () => {
     const text = "...output text...";
     return expect(text).to.have.baseline("transpilerOutput.txt", { base: "./baselines" }); // returns Promise
@@ -28,10 +35,17 @@ it("baseline", () => {
 ## Usage with `assert`
 
 ```ts
+// ES6 syntax (TypeScript, Babel)
 import { use, assert } from "chai";
 import chaiBaseline from "chai-baseline";
 use(chaiBaseline);
 
+// pre-ES6 syntax
+var chai = require("chai"), assert = chai.assert;
+var chaiBaseline = require("chai-baseline").default;
+chai.use(chaiBaseline);
+
+// usage
 it("baseline", () => {
     const text = "...output text...";
     return assert.baseline(text, "transpilerOutput.txt", { base: "./baselines" }); // returns Promise
