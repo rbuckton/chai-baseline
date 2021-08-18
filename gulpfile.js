@@ -1,11 +1,8 @@
-var gulp = require("gulp")
-  , tsb = require("gulp-tsb")
-  , del = require("del");
+// @ts-check
+const gulp = require("gulp");
+const { buildProject, watchProject, cleanProject } = require("./scripts/build");
 
-var project = tsb.create("src/tsconfig.json");
-gulp.task("clean", cb => del(["out"], cb));
-gulp.task("build", () => gulp.src("src/**/*.ts", { base: "src" })
-    .pipe(project())
-    .pipe(gulp.dest("out")));
-gulp.task("watch", ["build"], () => gulp.watch(["src/**/*.ts"], ["build"]));
-gulp.task("default", ["build"]);
+gulp.task("clean", () => cleanProject("tsconfig.json"));
+gulp.task("build", () => buildProject("tsconfig.json"));
+gulp.task("watch", () => watchProject("tsconfig.json"));
+gulp.task("default", gulp.task("build"));

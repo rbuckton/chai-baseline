@@ -16,6 +16,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { Stream } from "stream";
+import { pipeline } from "stream/promises";
 
 declare global {
     namespace Chai {
@@ -67,7 +68,7 @@ export function chaiBaseline(chai: Chai.ChaiStatic, utils: Chai.UtilsStatic) {
 
             let object = utils.flag(this, "object");
             let data: string | Buffer | NodeJS.ReadableStream | undefined;
-            if (typeof object === "undefined" || typeof object === "string" || Buffer.isBuffer(object) || (object instanceof Stream && object.readable)) {
+            if (typeof object === "undefined" || typeof object === "string" || Buffer.isBuffer(object) || isReadableStream(object)) {
                 data = object;
             }
             else {
@@ -103,6 +104,13 @@ export function chaiBaseline(chai: Chai.ChaiStatic, utils: Chai.UtilsStatic) {
 
 export default chaiBaseline;
 
+function isReadableStream(value: any): value is NodeJS.ReadableStream {
+    return typeof value === "object"
+        && value instanceof Stream
+        && (value as NodeJS.ReadableStream).readable
+        && typeof (value as NodeJS.ReadableStream).pipe === "function";
+}
+
 function readFile(file: string) {
     return new Promise<string | undefined>((resolve) => {
         fs.readFile(file, /*encoding*/ "utf8", (err, data) => {
@@ -111,69 +119,59 @@ function readFile(file: string) {
     });
 }
 
-function writeLocal(local: string, data: string | NodeJS.ReadableStream | Buffer | undefined) {
-    return new Promise<string | undefined>((resolve, reject) => {
-        if (data === undefined) {
-            unlink(local)
-                .then(() => resolve())
-                .catch(reject);
-        }
-        else if (typeof data === "string" || Buffer.isBuffer(data)) {
-            const text = data.toString();
-            writeFile(local, text)
-                .then(() => resolve(text))
-                .catch(reject);
-        }
-        else {
-            writeStream(local, data)
-                .then(() => readFile(local))
-                .then(data => resolve(data))
-                .catch(reject);
-        }
+async function writeLocal(local: string, data: string | NodeJS.ReadableStream | Buffer | undefined) {
+    if (data === undefined) {
+        await unlink(local);
+    }
+    else if (typeof data === "string") {
+        await writeFile(local, data);
+        return data;
+    }
+    else if (Buffer.isBuffer(data)) {
+        await writeFile(local, data);
+        return data.toString("utf8");
+    }
+    else {
+        await writeStream(local, data)
+        return await readFile(local);
+    }
+}
+
+async function writeFile(file: string, data: string | Buffer) {
+    await ensureDirectory(path.dirname(file));
+    await new Promise<void>((resolve, reject) => {
+        fs.writeFile(file, data, /*encoding*/ "utf8", err => err ? reject(err) : resolve());
     });
 }
 
-function writeFile(file: string, data: string) {
-    return new Promise<void>((resolve, reject) => {
-        ensureDirectory(path.dirname(file))
-            .then(() => fs.writeFile(file, data, /*encoding*/ "utf8", err => err ? reject(err) : resolve()))
-            .catch(reject);
-    });
+async function writeStream(file: string, stream: NodeJS.ReadableStream) {
+    await ensureDirectory(path.dirname(file));
+    await pipeline(stream, fs.createWriteStream(file, { encoding: "utf8", autoClose: true }));
 }
 
-function writeStream(file: string, stream: NodeJS.ReadableStream) {
-    return new Promise<void>((resolve, reject) => {
-        ensureDirectory(path.dirname(file)).then(() => {
-            stream
-                .pipe(fs.createWriteStream(file, { encoding: "utf8" }), { end: true })
-                .on("error", reject)
-                .on("close", () => resolve());
-        })
-        .catch(reject);
-    })
-}
-
-function mkdir(dirname: string, mode: number) {
+function mkdir(dirname: string, mode: fs.Mode) {
     return new Promise<void>((resolve, reject) => {
         fs.mkdir(dirname, mode, err => err ? reject(err) : resolve());
     });
 }
 
-function ensureDirectory(dirname: string): Promise<void> {
-    return mkdir(dirname, 0o07777 & ~process.umask())
-        .catch((e: NodeJS.ErrnoException) => {
-            if (e.code === "EEXIST") {
+async function ensureDirectory(dirname: string): Promise<void> {
+    try {
+        await mkdir(dirname, 4095 & ~process.umask());
+    } catch (e) {
+        if (e.code === "EEXIST") {
+            return;
+        }
+        else if (e.code === "ENOENT") {
+            const parentdir = path.dirname(dirname);
+            if (parentdir && parentdir !== dirname) {
+                await ensureDirectory(parentdir);
+                await mkdir(dirname, 4095 & ~process.umask());
                 return;
             }
-            else if (e.code === "ENOENT") {
-                const parentdir = path.dirname(dirname);
-                if (parentdir && parentdir !== dirname) {
-                    return ensureDirectory(parentdir)
-                        .then(() => ensureDirectory(dirname));
-                }
-            }
-            throw e;
-        });
+        }
+        throw e;
+    }
 }
 
 function unlink(file: string) {
