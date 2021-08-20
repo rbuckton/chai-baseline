@@ -166,7 +166,14 @@ async function ensureDirectory(dirname: string): Promise<void> {
             const parentdir = path.dirname(dirname);
             if (parentdir && parentdir !== dirname) {
                 await ensureDirectory(parentdir);
-                await mkdir(dirname, 4095 & ~process.umask());
+                try {
+                    await mkdir(dirname, 4095 & ~process.umask());
+                }
+                catch (e) {
+                    if (e.code !== "EEXIST") {
+                        throw e;
+                    }
+                }
                 return;
             }
         }
