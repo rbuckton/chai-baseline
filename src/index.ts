@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { AssertionError } from "chai";
 import * as fs from "fs";
 import * as path from "path";
 import { Stream } from "stream";
@@ -50,6 +51,8 @@ export interface BaselineOptions {
     local?: string;
     /** The absolute or relative (to the base directory) path for the reference directory. */
     reference?: string;
+    /** Whether to show file contents (rather than file names) when a reference or local baseline is missing. */
+    showFileContentsWhenMissing?: boolean;
 }
 
 export function chaiBaseline(chai: Chai.ChaiStatic, utils: Chai.UtilsStatic) {
@@ -83,12 +86,34 @@ export function chaiBaseline(chai: Chai.ChaiStatic, utils: Chai.UtilsStatic) {
             ])
             .then(([local, reference]) => {
                 utils.flag(this, "object", local);
+                if (!options.showFileContentsWhenMissing) {
+                    if (local === undefined && reference !== undefined) {
+                        this.assert(
+                            false,
+                            `Reference baseline exists for '${file}', but no local output was generated.`,
+                            `Reference baseline exists for '${file}', but local output was generated.`,
+                            localFile,
+                            "<no file>",
+                            false
+                        );
+                    }
+                    if (reference === undefined && local !== undefined) {
+                        this.assert(
+                            false,
+                            `Local output was generated, but no reference baseline exists for '${file}'.`, 
+                            `Local output was generated, but reference baseline exists for '${file}'.`, 
+                            "<no file>",
+                            localFile,
+                            false
+                        );
+                    }
+                }
                 try {
                     this.equals(reference);
                 }
                 catch (e) {
-                    e.expected = reference || "";
-                    e.actual = local || "";
+                    e.expected = reference;
+                    e.actual = local;
                     e.showDiff = true;
                     throw e;
                 }
